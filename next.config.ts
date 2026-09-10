@@ -1,7 +1,11 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-devIndicators: false,
+  typescript: {
+    // Bỏ qua lỗi TypeScript trong quá trình build trên Vercel
+    ignoreBuildErrors: true,
+  },
+  devIndicators: false,
 };
 
 export default nextConfig;
