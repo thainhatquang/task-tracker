@@ -1590,7 +1590,6 @@ export default function DocumentTaskTracker() {
             <div className="flex items-center justify-between px-3.5 py-2 bg-emerald-50/80 border border-emerald-200/80 rounded-xl text-xs text-emerald-900">
               <div className="flex items-center gap-2 font-medium">
                 <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
-                <span>Đã kết nối cơ sở dữ liệu đám mây Supabase. Mọi thay đổi sẽ đồng bộ tức thì trên cả điện thoại và máy tính.</span>
               </div>
               {lastSyncTime && (
                 <span className="text-[10px] text-emerald-700 font-mono font-bold">
