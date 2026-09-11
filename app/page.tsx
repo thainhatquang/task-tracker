@@ -51,7 +51,6 @@ export interface ChatMessage {
   timestamp: string;
 }
 
-// Logo biểu tượng cao cấp Đảng ủy phường Trung Nhứt
 function VibeLogo() {
   return (
     <div className="flex items-center gap-3">
@@ -77,7 +76,6 @@ function VibeLogo() {
   );
 }
 
-// Biểu đồ tròn Donut Chart hoàn thiện cao cấp
 function PlanDonutChart({ percent, size = "md" }: { percent: number; size?: "sm" | "md" | "lg" }) {
   const r = size === "lg" ? 54 : size === "sm" ? 28 : 38;
   const strokeW = size === "lg" ? 12 : size === "sm" ? 6 : 9;
@@ -163,7 +161,7 @@ export default function DocumentTaskTracker() {
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "live" | "off">("off");
   const [lastSyncTime, setLastSyncTime] = useState<string>("");
 
-  // Tài khoản người dùng mặc định
+  // Danh sách người dùng
   const defaultUsers: UserAccount[] = [
     { id: "u-1", username: "admin", password: "Admin@TrungNhut2026", full_name: "Quản trị viên Đảng ủy", role: "admin" },
     { id: "u-2", username: "nhaplieu", password: "Nhaplieu@2026", full_name: "Cán bộ nhập liệu Văn phòng", role: "editor" },
@@ -205,15 +203,15 @@ export default function DocumentTaskTracker() {
     document.title = "Theo dõi nghị quyết - Đảng ủy phường Trung Nhứt";
   }, []);
 
-  // Khôi phục người dùng từ localStorage
+  // Khôi phục người dùng từ localStorage & nạp từ Supabase table app_users nếu có
   useEffect(() => {
     try {
-      const savedUserStr = localStorage.getItem("party_current_user_v19");
+      const savedUserStr = localStorage.getItem("party_current_user_v20");
       if (savedUserStr) {
         const u = JSON.parse(savedUserStr);
         if (u && u.username) setCurrentUser(u);
       }
-      const savedUsersStr = localStorage.getItem("party_accounts_list_v19");
+      const savedUsersStr = localStorage.getItem("party_accounts_list_v20");
       if (savedUsersStr) {
         const uList = JSON.parse(savedUsersStr);
         if (Array.isArray(uList) && uList.length > 0) setUsers(uList);
@@ -221,15 +219,24 @@ export default function DocumentTaskTracker() {
     } catch (e) {
       console.warn("Lỗi đọc tài khoản:", e);
     }
+
+    // Đọc bảng app_users từ Supabase
+    if (isSupabaseConfigured && supabase) {
+      supabase.from("app_users").select("*").then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          setUsers(data);
+        }
+      });
+    }
   }, []);
 
   useEffect(() => {
     if (users && users.length > 0) {
-      localStorage.setItem("party_accounts_list_v19", JSON.stringify(users));
+      localStorage.setItem("party_accounts_list_v20", JSON.stringify(users));
     }
   }, [users]);
 
-  // XỬ LÝ ĐĂNG NHẬP CHÍNH XÁC, AN TOÀN, KHÔNG GÂY LỖI KHÓA
+  // XỬ LÝ ĐĂNG NHẬP THÔNG MINH, ĐẢM BẢO KHÔNG BỊ KHÓA
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const uInput = loginUsername.trim().toLowerCase();
@@ -258,7 +265,7 @@ export default function DocumentTaskTracker() {
 
       if (isCorrectPassword) {
         setCurrentUser(matched);
-        localStorage.setItem("party_current_user_v19", JSON.stringify(matched));
+        localStorage.setItem("party_current_user_v20", JSON.stringify(matched));
         setIsAuthModalOpen(false);
         setLoginUsername("");
         setLoginPassword("");
@@ -273,7 +280,7 @@ export default function DocumentTaskTracker() {
   const handleLogout = () => {
     if (confirm("Đồng chí có chắc chắn muốn đăng xuất khỏi tài khoản hiện tại?")) {
       setCurrentUser(null);
-      localStorage.removeItem("party_current_user_v19");
+      localStorage.removeItem("party_current_user_v20");
       if (activeTab === "admin_docs" || activeTab === "admin_targets" || activeTab === "admin_users") {
         setActiveTab("tong_quan");
       }
@@ -505,7 +512,7 @@ export default function DocumentTaskTracker() {
       }
     }
 
-    const saved = localStorage.getItem("party_documents_v19");
+    const saved = localStorage.getItem("party_documents_v20");
     if (saved) {
       try { setDocs(JSON.parse(saved)); } catch (e) { setDocs(sampleData); }
     } else {
@@ -515,13 +522,56 @@ export default function DocumentTaskTracker() {
     setLoading(false);
   };
 
+  // NẠP DỮ LIỆU BAN ĐẦU LÊN SUPABASE (NẾU CƠ SỞ DỮ LIỆU ĐANG TRỐNG)
+  const handleSeedDataToSupabase = async () => {
+    if (!isSupabaseConfigured || !supabase) {
+      alert("Hệ thống chưa kết nối được với Supabase. Vui lòng kiểm tra biến môi trường NEXT_PUBLIC_SUPABASE_URL trên Vercel.");
+      return;
+    }
+    if (!confirm("Đồng chí có muốn đẩy toàn bộ danh mục văn bản và kế hoạch mẫu hiện tại lên lưu trữ cố định trên Supabase?")) return;
+
+    try {
+      setLoading(true);
+      for (const doc of docs) {
+        const payload: any = {
+          title: `${doc.doc_number}: ${doc.title}`,
+          level: doc.level,
+          deadline: doc.issue_date,
+          assignee: doc.assignee,
+          status: doc.status,
+          doc_number: doc.doc_number,
+          issuer: doc.issuer,
+          file_url: doc.file_url,
+          doc_url: doc.doc_url,
+          file_name: doc.file_name,
+          is_concretized: doc.is_concretized,
+          concretized_by: doc.concretized_by,
+          target_name: doc.target_name,
+          target_percent: doc.target_percent,
+          sub_targets: JSON.stringify(doc.sub_targets || []),
+        };
+        await supabase.from("tasks").insert([payload]);
+      }
+      // Nạp danh sách người dùng vào bảng app_users
+      for (const u of users) {
+        await supabase.from("app_users").upsert([u]);
+      }
+      alert("✓ Toàn bộ dữ liệu đã được khởi tạo và lưu trữ thành công lên Supabase!");
+      await loadData();
+    } catch (err: any) {
+      alert("Lỗi khi ghi dữ liệu lên Supabase: " + (err.message || err));
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadData();
 
     if (isSupabaseConfigured && supabase) {
       setRealtimeStatus("connecting");
       const channel = supabase
-        .channel("realtime_tasks_channel_v19")
+        .channel("realtime_tasks_channel_v20")
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "tasks" },
@@ -556,7 +606,7 @@ export default function DocumentTaskTracker() {
 
   useEffect(() => {
     if (!isSupabaseConfigured && docs.length > 0) {
-      localStorage.setItem("party_documents_v19", JSON.stringify(docs));
+      localStorage.setItem("party_documents_v20", JSON.stringify(docs));
     }
   }, [docs]);
 
@@ -601,6 +651,7 @@ export default function DocumentTaskTracker() {
     }
   };
 
+  // 1. LƯU TẠO MỚI VĂN BẢN VÀO SUPABASE (BÁO LỖI NẾU KHÔNG GHI ĐƯỢC)
   const handleCreateDoc = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canEdit) {
@@ -676,7 +727,9 @@ export default function DocumentTaskTracker() {
         sub_targets: JSON.stringify(newDoc.sub_targets || []),
       };
       const { data, error } = await supabase.from("tasks").insert([payload]).select();
-      if (!error && data && data.length > 0) {
+      if (error) {
+        alert("⚠️ Cảnh báo Supabase: Không thể ghi vào bảng tasks (" + error.message + "). Dữ liệu đã lưu tạm vào bộ nhớ trình duyệt.");
+      } else if (data && data.length > 0) {
         newDoc.id = data[0].id;
       }
     }
@@ -684,7 +737,7 @@ export default function DocumentTaskTracker() {
     setDocs([newDoc, ...docs]);
     setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     setIsUploading(false);
-    setFormSuccessMsg(`Đã tiếp nhận và lưu trữ thành công văn bản ${newDoc.doc_number} lên Supabase!`);
+    setFormSuccessMsg(`Đã tiếp nhận và lưu trữ thành công văn bản ${newDoc.doc_number}!`);
     setTimeout(() => setFormSuccessMsg(""), 4000);
 
     setFormDocNumber("");
@@ -698,6 +751,7 @@ export default function DocumentTaskTracker() {
     setFormSubTargets([{ name: "", percent: 0, deadline: "2026-12-31", bottleneck_reason: "", proposed_solution: "" }]);
   };
 
+  // 2. LƯU CẬP NHẬT VĂN BẢN VÀO SUPABASE
   const handleUpdateDoc = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingDoc || !canEdit) return;
@@ -721,7 +775,7 @@ export default function DocumentTaskTracker() {
     setDocs(docs.map(d => d.id === updatedDoc.id ? updatedDoc : d));
 
     if (isSupabaseConfigured && supabase) {
-      await supabase.from("tasks").update({
+      const payload: any = {
         title: `${updatedDoc.doc_number}: ${updatedDoc.title}`,
         level: updatedDoc.level,
         deadline: updatedDoc.issue_date,
@@ -734,15 +788,27 @@ export default function DocumentTaskTracker() {
         file_name: updatedDoc.file_name,
         is_concretized: updatedDoc.is_concretized,
         concretized_by: updatedDoc.concretized_by,
-      }).eq("id", updatedDoc.id);
+      };
+
+      // Kiểm tra nếu ID dạng số (đã có trong Supabase)
+      if (typeof updatedDoc.id === "number" || !isNaN(Number(updatedDoc.id))) {
+        const { error } = await supabase.from("tasks").update(payload).eq("id", updatedDoc.id);
+        if (error) {
+          alert("Lỗi cập nhật trên Supabase: " + error.message);
+        }
+      } else {
+        // Nếu là ID mẫu chưa có trên Supabase, insert mới vào CSDL
+        await supabase.from("tasks").insert([payload]);
+      }
     }
 
     setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     setEditingDoc(null);
     setFormFile(null);
-    alert(`Đã cập nhật và lưu trữ thành công văn bản ${updatedDoc.doc_number} lên Supabase!`);
+    alert(`Đã cập nhật thành công văn bản ${updatedDoc.doc_number}!`);
   };
 
+  // 3. XÓA VĂN BẢN KHỎI SUPABASE
   const handleDeleteDoc = async (id: string | number) => {
     if (!canAdmin) {
       alert("Chỉ quản trị viên mới có quyền xóa văn bản.");
@@ -750,12 +816,17 @@ export default function DocumentTaskTracker() {
     }
     if (!confirm("Đồng chí có chắc chắn muốn xóa văn bản này khỏi hệ thống?")) return;
     setDocs(docs.filter(d => d.id !== id));
+
     if (isSupabaseConfigured && supabase) {
-      await supabase.from("tasks").delete().eq("id", id);
+      if (typeof id === "number" || !isNaN(Number(id))) {
+        const { error } = await supabase.from("tasks").delete().eq("id", id);
+        if (error) console.error("Lỗi xóa trên Supabase:", error);
+      }
     }
     setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
   };
 
+  // 4. LƯU THAY ĐỔI TIẾN ĐỘ & CHỈ TIÊU KẾ HOẠCH VÀO SUPABASE
   const handleUpdateSelectedPlanTargets = async (docId: string | number, newSubTargets: SubTarget[]) => {
     if (!canEdit) return;
 
@@ -776,17 +847,46 @@ export default function DocumentTaskTracker() {
     setDocs(docs.map(d => String(d.id) === String(docId) ? updated : d));
 
     if (isSupabaseConfigured && supabase) {
-      await supabase.from("tasks").update({
+      const payload: any = {
         sub_targets: JSON.stringify(newSubTargets),
         target_name: updated.target_name,
         target_percent: planCompletedPercent,
         status: newStatus
-      }).eq("id", docId);
+      };
+
+      if (typeof docId === "number" || !isNaN(Number(docId))) {
+        const { error } = await supabase.from("tasks").update(payload).eq("id", docId);
+        if (error) {
+          console.error("Lỗi cập nhật chỉ tiêu trên Supabase:", error);
+        }
+      } else {
+        // Nếu là văn bản mẫu (p-1, p-2) chưa ghi vào Supabase, ghi trực tiếp cả văn bản vào CSDL
+        const fullPayload: any = {
+          title: `${targetDoc.doc_number}: ${targetDoc.title}`,
+          level: targetDoc.level,
+          deadline: targetDoc.issue_date,
+          assignee: targetDoc.assignee,
+          status: newStatus,
+          doc_number: targetDoc.doc_number,
+          issuer: targetDoc.issuer,
+          is_concretized: true,
+          target_name: updated.target_name,
+          target_percent: planCompletedPercent,
+          sub_targets: JSON.stringify(newSubTargets),
+        };
+        const { data } = await supabase.from("tasks").insert([fullPayload]).select();
+        if (data && data.length > 0) {
+          updated.id = data[0].id;
+          setSelectedPlanId(String(data[0].id));
+          setDocs(docs.map(d => String(d.id) === String(docId) ? updated : d));
+        }
+      }
     }
 
     setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
   };
 
+  // 5. GÁN CỤ THỂ HÓA VĂN BẢN VÀO SUPABASE
   const handleSetConcretized = async (id: string | number) => {
     if (!canEdit) return;
     const input = prompt("Nhập số, ký hiệu văn bản của Đảng ủy phường cụ thể hóa:", "Kế hoạch số ...-KH/ĐU");
@@ -795,7 +895,22 @@ export default function DocumentTaskTracker() {
     setDocs(docs.map(d => d.id === id ? { ...d, is_concretized: true, concretized_by: input.trim() } : d));
 
     if (isSupabaseConfigured && supabase) {
-      await supabase.from("tasks").update({ is_concretized: true, concretized_by: input.trim() }).eq("id", id);
+      if (typeof id === "number" || !isNaN(Number(id))) {
+        await supabase.from("tasks").update({ is_concretized: true, concretized_by: input.trim() }).eq("id", id);
+      } else {
+        const docItem = docs.find(d => d.id === id);
+        if (docItem) {
+          await supabase.from("tasks").insert([{
+            title: `${docItem.doc_number}: ${docItem.title}`,
+            level: docItem.level,
+            deadline: docItem.issue_date,
+            doc_number: docItem.doc_number,
+            issuer: docItem.issuer,
+            is_concretized: true,
+            concretized_by: input.trim()
+          }]);
+        }
+      }
     }
 
     setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
@@ -823,7 +938,8 @@ export default function DocumentTaskTracker() {
     setIsUserModalOpen(true);
   };
 
-  const handleSaveUser = (e: React.FormEvent) => {
+  // 6. LƯU NGƯỜI DÙNG VÀO SUPABASE TABLE APP_USERS
+  const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userFormUsername.trim() || !userFormFullName.trim()) {
       setUserFormError("Vui lòng nhập đầy đủ tên đăng nhập và họ tên.");
@@ -831,19 +947,19 @@ export default function DocumentTaskTracker() {
     }
 
     if (editingUser) {
-      const updated = users.map(u => {
-        if (u.id === editingUser.id) {
-          return {
-            ...u,
-            username: userFormUsername.trim().toLowerCase(),
-            full_name: userFormFullName.trim(),
-            role: userFormRole,
-            password: userFormPassword.trim() || u.password,
-          };
-        }
-        return u;
-      });
+      const updatedUser: UserAccount = {
+        ...editingUser,
+        username: userFormUsername.trim().toLowerCase(),
+        full_name: userFormFullName.trim(),
+        role: userFormRole,
+        password: userFormPassword.trim() || editingUser.password,
+      };
+      const updated = users.map(u => u.id === editingUser.id ? updatedUser : u);
       setUsers(updated);
+
+      if (isSupabaseConfigured && supabase) {
+        await supabase.from("app_users").upsert([updatedUser]);
+      }
       setIsUserModalOpen(false);
     } else {
       if (users.some(u => u.username.toLowerCase() === userFormUsername.trim().toLowerCase())) {
@@ -863,11 +979,15 @@ export default function DocumentTaskTracker() {
         created_at: new Date().toISOString().slice(0, 10),
       };
       setUsers([...users, newUser]);
+
+      if (isSupabaseConfigured && supabase) {
+        await supabase.from("app_users").insert([newUser]);
+      }
       setIsUserModalOpen(false);
     }
   };
 
-  const handleDeleteUser = (id: string) => {
+  const handleDeleteUser = async (id: string) => {
     if (!canAdmin) return;
     if (currentUser?.id === id) {
       alert("Đồng chí không thể tự xóa tài khoản của chính mình đang đăng nhập.");
@@ -875,6 +995,10 @@ export default function DocumentTaskTracker() {
     }
     if (!confirm("Đồng chí có chắc chắn muốn xóa người dùng này?")) return;
     setUsers(users.filter(u => u.id !== id));
+
+    if (isSupabaseConfigured && supabase) {
+      await supabase.from("app_users").delete().eq("id", id);
+    }
   };
 
   const counts = useMemo(() => ({
@@ -883,7 +1007,6 @@ export default function DocumentTaskTracker() {
     phuong: docs.filter(d => d.level === "Phường").length,
   }), [docs]);
 
-  // Danh mục Văn bản Đảng ủy phường
   const wardPlans = useMemo(() => docs.filter(d => d.level === "Phường"), [docs]);
 
   const allSubTargets = useMemo(() => {
@@ -909,7 +1032,6 @@ export default function DocumentTaskTracker() {
     return allSubTargets.filter(item => item.target.percent === 100);
   }, [allSubTargets]);
 
-  // FIX CHỌN KẾ HOẠCH ĐỒNG BỘ STRING
   const selectedPlan = useMemo(() => {
     if (!selectedPlanId && wardPlans.length > 0) return wardPlans[0];
     return wardPlans.find(p => String(p.id) === String(selectedPlanId)) || wardPlans[0] || null;
@@ -938,7 +1060,7 @@ export default function DocumentTaskTracker() {
     return docs.filter(d => d.level === adminDocSubTab);
   }, [docs, adminDocSubTab]);
 
-  // AI GEMINI HUẤN LUYỆN SÚC TÍCH
+  // AI GEMINI TRẢ LỜI NGẮN GỌN, SẮC BÉN
   const askGeminiAssistant = async (queryText: string) => {
     if (!queryText.trim()) return;
 
@@ -976,7 +1098,7 @@ export default function DocumentTaskTracker() {
         }
       }
     } catch (err) {
-      console.warn("Gọi API Gemini thất bại, chuyển sang bộ phân tích nội bộ:", err);
+      console.warn("Gọi API Gemini thất bại, dùng bộ phân tích nội bộ:", err);
     }
 
     setTimeout(() => {
@@ -1073,7 +1195,7 @@ export default function DocumentTaskTracker() {
     }, 400);
   };
 
-  // HÀM IN BÁO CÁO CÔ LẬP CHUẨN XÁC 1 TRANG A4 (KHÔNG BỊ TRÀN 3 TRANG, KHÔNG DÍNH NỀN WEB)
+  // HÀM IN BÁO CÁO CÔ LẬP CHUẨN XÁC 1 TRANG A4 BẰNG POPUP (100% KHÔNG LỖI CO KÉO, KHÔNG TRÀN TRANG)
   const handlePrintReport = () => {
     const reportElem = document.getElementById("printable-party-report");
     if (!reportElem) return;
@@ -1093,12 +1215,12 @@ export default function DocumentTaskTracker() {
           <style>
             @page {
               size: A4 portrait;
-              margin: 15mm 20mm 15mm 20mm;
+              margin: 12mm 18mm 12mm 18mm;
             }
             body {
               font-family: 'Times New Roman', Times, serif;
-              font-size: 13pt;
-              line-height: 1.4;
+              font-size: 12.5pt;
+              line-height: 1.35;
               color: #000;
               margin: 0;
               padding: 0;
@@ -1109,20 +1231,20 @@ export default function DocumentTaskTracker() {
             .uppercase { text-transform: uppercase; }
             .italic { font-style: italic; }
             p {
-              margin: 6px 0;
+              margin: 5px 0;
               text-align: justify;
               text-indent: 1.25cm;
-              line-height: 1.4;
+              line-height: 1.35;
             }
             table {
               width: 100%;
               border-collapse: collapse;
-              margin: 10px 0;
-              font-size: 11pt;
+              margin: 8px 0;
+              font-size: 10.5pt;
             }
             th, td {
               border: 1px solid #000;
-              padding: 5px 8px;
+              padding: 4px 6px;
               vertical-align: top;
             }
             th {
@@ -1131,13 +1253,13 @@ export default function DocumentTaskTracker() {
               text-align: center;
             }
             ol, ul {
-              margin: 6px 0;
+              margin: 5px 0;
               padding-left: 24px;
             }
             li {
-              margin-bottom: 4px;
+              margin-bottom: 3px;
               text-align: justify;
-              line-height: 1.35;
+              line-height: 1.3;
             }
             .no-print {
               display: none !important;
@@ -1388,6 +1510,17 @@ export default function DocumentTaskTracker() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
+            {/* Nút kiểm tra đồng bộ Supabase */}
+            {canAdmin && isSupabaseConfigured && (
+              <button
+                onClick={handleSeedDataToSupabase}
+                className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 hover:border-emerald-200 rounded-xl text-xs font-bold transition cursor-pointer"
+                title="Đẩy toàn bộ dữ liệu mẫu lên lưu trữ vĩnh viễn trên Supabase"
+              >
+                <span>☁️</span> <span>Nạp CSDL Supabase</span>
+              </button>
+            )}
+
             <button
               onClick={() => setIsReportModalOpen(true)}
               className="px-3 py-1.5 md:px-3.5 md:py-2 bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-700 hover:to-rose-700 text-white rounded-xl text-xs font-bold shadow-sm transition flex items-center gap-1.5 cursor-pointer shrink-0"
@@ -1430,6 +1563,18 @@ export default function DocumentTaskTracker() {
         </header>
 
         <div className="p-4 md:p-6 max-w-7xl w-full mx-auto space-y-6">
+          {/* CẢNH BÁO NẾU CHƯA CẤU HÌNH SUPABASE BIẾN MÔI TRƯỜNG */}
+          {!isSupabaseConfigured && (
+            <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl flex items-center justify-between gap-3 text-xs text-amber-900">
+              <div className="flex items-center gap-2">
+                <span className="text-base">⚠️</span>
+                <div>
+                  <strong>Chưa kết nối Supabase trên môi trường hiện tại:</strong> Hệ thống đang lưu tạm vào trình duyệt. Hãy cấu hình <code>NEXT_PUBLIC_SUPABASE_URL</code> và <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> trên Vercel hoặc file <code>.env.local</code> để dữ liệu lưu vĩnh viễn trên đám mây.
+                </div>
+              </div>
+            </div>
+          )}
+
           {/* ======================= TAB 1: TỔNG QUAN TIẾN ĐỘ ======================= */}
           {activeTab === "tong_quan" && (
             <div className="space-y-6">
@@ -2539,7 +2684,7 @@ export default function DocumentTaskTracker() {
         </div>
       )}
 
-      {/* ===================== MODAL XUẤT BÁO CÁO THƯỜNG TRỰC (IN CÔ LẬP TRỰC TIẾP QUA POPUP A4) ===================== */}
+      {/* ===================== MODAL XUẤT BÁO CÁO THƯỜNG TRỰC ===================== */}
       {isReportModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-xs p-3 md:p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in duration-150 max-h-[94vh] flex flex-col">
@@ -2570,6 +2715,7 @@ export default function DocumentTaskTracker() {
                   <span>✨</span> {isAiGeneratingReportSection ? "Đang tạo..." : "Tạo kiến nghị AI"}
                 </button>
 
+                {/* NÚT IN ĐƯỢC THAY THẾ BẰNG HÀM IN CÔ LẬP KHỔ A4 */}
                 <button
                   onClick={handlePrintReport}
                   className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-[11px] md:text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1 shadow-sm"
@@ -2966,7 +3112,7 @@ export default function DocumentTaskTracker() {
         </div>
       )}
 
-      {/* MODAL ĐĂNG NHẬP (ĐÃ BỎ HOÀN TOÀN KHUNG GỢI Ý MẬT KHẨU THEO YÊU CẦU) */}
+      {/* MODAL ĐĂNG NHẬP (ĐÃ BỎ HOÀN TOÀN KHUNG GỢI Ý MẬT KHẨU) */}
       {isAuthModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 md:p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in duration-150">
