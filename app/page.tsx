@@ -126,19 +126,15 @@ export default function DocumentTaskTracker() {
   const [search, setSearch] = useState("");
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
-  // Sub-tab phân loại văn bản trong Quản lý văn bản
   const [adminDocSubTab, setAdminDocSubTab] = useState<"all" | "Trung ương" | "Thành ủy" | "Phường">("all");
 
-  // Modal 2 nhóm chỉ tiêu
   const [modalPlan, setModalPlan] = useState<DocItem | null>(null);
 
-  // Modal Xuất báo cáo thường trực
   const [isReportModalOpen, setIsReportModalOpen] = useState(false);
   const [reportPeriod, setReportPeriod] = useState<string>("Định kỳ tháng 09/2026");
   const [isAiGeneratingReportSection, setIsAiGeneratingReportSection] = useState(false);
   const [customAiSectionIV, setCustomAiSectionIV] = useState<string[] | null>(null);
 
-  // Trợ lý AI Gemini Floating Widget
   const [isChatbotOpen, setIsChatbotOpen] = useState(false);
   const [aiQuery, setAiQuery] = useState("");
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([
@@ -152,7 +148,6 @@ export default function DocumentTaskTracker() {
   const [isAiThinking, setIsAiThinking] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  // Quản lý người dùng & Đăng nhập phân quyền
   const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [loginUsername, setLoginUsername] = useState("");
@@ -160,8 +155,8 @@ export default function DocumentTaskTracker() {
   const [loginError, setLoginError] = useState("");
   const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "live" | "off">("off");
   const [lastSyncTime, setLastSyncTime] = useState<string>("");
+  const [statusNotice, setStatusNotice] = useState<string>("");
 
-  // Danh sách người dùng
   const defaultUsers: UserAccount[] = [
     { id: "u-1", username: "admin", password: "Admin@TrungNhut2026", full_name: "Quản trị viên Đảng ủy", role: "admin" },
     { id: "u-2", username: "nhaplieu", password: "Nhaplieu@2026", full_name: "Cán bộ nhập liệu Văn phòng", role: "editor" },
@@ -169,7 +164,6 @@ export default function DocumentTaskTracker() {
   ];
   const [users, setUsers] = useState<UserAccount[]>(defaultUsers);
 
-  // State chỉnh sửa / thêm người dùng
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [userFormUsername, setUserFormUsername] = useState("");
@@ -178,7 +172,6 @@ export default function DocumentTaskTracker() {
   const [userFormRole, setUserFormRole] = useState<UserRole>("editor");
   const [userFormError, setUserFormError] = useState("");
 
-  // State form tiếp nhận văn bản mới
   const [formLevel, setFormLevel] = useState<"Trung ương" | "Thành ủy" | "Phường">("Trung ương");
   const [formDocNumber, setFormDocNumber] = useState("");
   const [formTitle, setFormTitle] = useState("");
@@ -195,7 +188,6 @@ export default function DocumentTaskTracker() {
   ]);
   const [formSuccessMsg, setFormSuccessMsg] = useState("");
 
-  // State chỉnh sửa văn bản
   const [editingDoc, setEditingDoc] = useState<DocItem | null>(null);
   const [selectedPlanId, setSelectedPlanId] = useState<string>("");
 
@@ -203,15 +195,14 @@ export default function DocumentTaskTracker() {
     document.title = "Theo dõi nghị quyết - Đảng ủy phường Trung Nhứt";
   }, []);
 
-  // Khôi phục người dùng từ localStorage & nạp từ Supabase table app_users nếu có
   useEffect(() => {
     try {
-      const savedUserStr = localStorage.getItem("party_current_user_v20");
+      const savedUserStr = localStorage.getItem("party_current_user_v21");
       if (savedUserStr) {
         const u = JSON.parse(savedUserStr);
         if (u && u.username) setCurrentUser(u);
       }
-      const savedUsersStr = localStorage.getItem("party_accounts_list_v20");
+      const savedUsersStr = localStorage.getItem("party_accounts_list_v21");
       if (savedUsersStr) {
         const uList = JSON.parse(savedUsersStr);
         if (Array.isArray(uList) && uList.length > 0) setUsers(uList);
@@ -220,7 +211,6 @@ export default function DocumentTaskTracker() {
       console.warn("Lỗi đọc tài khoản:", e);
     }
 
-    // Đọc bảng app_users từ Supabase
     if (isSupabaseConfigured && supabase) {
       supabase.from("app_users").select("*").then(({ data, error }) => {
         if (!error && data && data.length > 0) {
@@ -232,11 +222,10 @@ export default function DocumentTaskTracker() {
 
   useEffect(() => {
     if (users && users.length > 0) {
-      localStorage.setItem("party_accounts_list_v20", JSON.stringify(users));
+      localStorage.setItem("party_accounts_list_v21", JSON.stringify(users));
     }
   }, [users]);
 
-  // XỬ LÝ ĐĂNG NHẬP THÔNG MINH, ĐẢM BẢO KHÔNG BỊ KHÓA
   const handleLogin = (e: React.FormEvent) => {
     e.preventDefault();
     const uInput = loginUsername.trim().toLowerCase();
@@ -265,7 +254,7 @@ export default function DocumentTaskTracker() {
 
       if (isCorrectPassword) {
         setCurrentUser(matched);
-        localStorage.setItem("party_current_user_v20", JSON.stringify(matched));
+        localStorage.setItem("party_current_user_v21", JSON.stringify(matched));
         setIsAuthModalOpen(false);
         setLoginUsername("");
         setLoginPassword("");
@@ -280,7 +269,7 @@ export default function DocumentTaskTracker() {
   const handleLogout = () => {
     if (confirm("Đồng chí có chắc chắn muốn đăng xuất khỏi tài khoản hiện tại?")) {
       setCurrentUser(null);
-      localStorage.removeItem("party_current_user_v20");
+      localStorage.removeItem("party_current_user_v21");
       if (activeTab === "admin_docs" || activeTab === "admin_targets" || activeTab === "admin_users") {
         setActiveTab("tong_quan");
       }
@@ -506,13 +495,17 @@ export default function DocumentTaskTracker() {
           setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
           setLoading(false);
           return;
+        } else if (error) {
+          console.error("Lỗi Supabase select:", error);
+          setStatusNotice(`Lỗi Supabase: ${error.message}`);
         }
-      } catch (err) {
+      } catch (err: any) {
         console.error("Lỗi kết nối Supabase:", err);
+        setStatusNotice(`Lỗi kết nối: ${err.message || err}`);
       }
     }
 
-    const saved = localStorage.getItem("party_documents_v20");
+    const saved = localStorage.getItem("party_documents_v21");
     if (saved) {
       try { setDocs(JSON.parse(saved)); } catch (e) { setDocs(sampleData); }
     } else {
@@ -522,13 +515,13 @@ export default function DocumentTaskTracker() {
     setLoading(false);
   };
 
-  // NẠP DỮ LIỆU BAN ĐẦU LÊN SUPABASE (NẾU CƠ SỞ DỮ LIỆU ĐANG TRỐNG)
+  // NẠP TOÀN BỘ DỮ LIỆU BAN ĐẦU LÊN SUPABASE ĐỂ LƯU VĨNH VIỄN
   const handleSeedDataToSupabase = async () => {
     if (!isSupabaseConfigured || !supabase) {
-      alert("Hệ thống chưa kết nối được với Supabase. Vui lòng kiểm tra biến môi trường NEXT_PUBLIC_SUPABASE_URL trên Vercel.");
+      alert("Chưa kết nối Supabase. Hãy kiểm tra biến môi trường NEXT_PUBLIC_SUPABASE_URL và NEXT_PUBLIC_SUPABASE_ANON_KEY trên Vercel!");
       return;
     }
-    if (!confirm("Đồng chí có muốn đẩy toàn bộ danh mục văn bản và kế hoạch mẫu hiện tại lên lưu trữ cố định trên Supabase?")) return;
+    if (!confirm("Đồng chí có muốn nạp toàn bộ danh mục văn bản và kế hoạch mẫu hiện tại vào Supabase?")) return;
 
     try {
       setLoading(true);
@@ -541,25 +534,31 @@ export default function DocumentTaskTracker() {
           status: doc.status,
           doc_number: doc.doc_number,
           issuer: doc.issuer,
-          file_url: doc.file_url,
-          doc_url: doc.doc_url,
-          file_name: doc.file_name,
+          file_url: doc.file_url || null,
+          doc_url: doc.doc_url || null,
+          file_name: doc.file_name || null,
           is_concretized: doc.is_concretized,
-          concretized_by: doc.concretized_by,
-          target_name: doc.target_name,
+          concretized_by: doc.concretized_by || null,
+          target_name: doc.target_name || null,
           target_percent: doc.target_percent,
           sub_targets: JSON.stringify(doc.sub_targets || []),
         };
-        await supabase.from("tasks").insert([payload]);
+        const { error } = await supabase.from("tasks").insert([payload]);
+        if (error) {
+          alert(`Lỗi khi ghi văn bản ${doc.doc_number} lên Supabase: ${error.message}`);
+          setLoading(false);
+          return;
+        }
       }
-      // Nạp danh sách người dùng vào bảng app_users
+
       for (const u of users) {
         await supabase.from("app_users").upsert([u]);
       }
-      alert("✓ Toàn bộ dữ liệu đã được khởi tạo và lưu trữ thành công lên Supabase!");
+
+      alert("✓ Toàn bộ dữ liệu đã được lưu thành công vào cơ sở dữ liệu Supabase! Bây giờ đồng chí mở trên điện thoại sẽ thấy ngay lập tức.");
       await loadData();
     } catch (err: any) {
-      alert("Lỗi khi ghi dữ liệu lên Supabase: " + (err.message || err));
+      alert("Lỗi: " + (err.message || err));
     } finally {
       setLoading(false);
     }
@@ -571,7 +570,7 @@ export default function DocumentTaskTracker() {
     if (isSupabaseConfigured && supabase) {
       setRealtimeStatus("connecting");
       const channel = supabase
-        .channel("realtime_tasks_channel_v20")
+        .channel("realtime_tasks_channel_v21")
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "tasks" },
@@ -606,7 +605,7 @@ export default function DocumentTaskTracker() {
 
   useEffect(() => {
     if (!isSupabaseConfigured && docs.length > 0) {
-      localStorage.setItem("party_documents_v20", JSON.stringify(docs));
+      localStorage.setItem("party_documents_v21", JSON.stringify(docs));
     }
   }, [docs]);
 
@@ -639,7 +638,7 @@ export default function DocumentTaskTracker() {
         .upload(filePath, file, { cacheControl: "3600", upsert: true });
 
       if (error) {
-        console.warn("Lỗi tải tệp lên Supabase Storage:", error.message);
+        console.warn("Lỗi upload Supabase Storage:", error.message);
         return URL.createObjectURL(file);
       }
 
@@ -651,7 +650,7 @@ export default function DocumentTaskTracker() {
     }
   };
 
-  // 1. LƯU TẠO MỚI VĂN BẢN VÀO SUPABASE (BÁO LỖI NẾU KHÔNG GHI ĐƯỢC)
+  // 1. THÊM VĂN BẢN VÀO SUPABASE (BÁO LỖI RÕ RÀNG NẾU SUPABASE TỪ CHỐI)
   const handleCreateDoc = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!canEdit) {
@@ -717,27 +716,30 @@ export default function DocumentTaskTracker() {
         status: newDoc.status,
         doc_number: newDoc.doc_number,
         issuer: newDoc.issuer,
-        file_url: newDoc.file_url,
-        doc_url: newDoc.doc_url,
-        file_name: newDoc.file_name,
+        file_url: newDoc.file_url || null,
+        doc_url: newDoc.doc_url || null,
+        file_name: newDoc.file_name || null,
         is_concretized: newDoc.is_concretized,
-        concretized_by: newDoc.concretized_by,
-        target_name: newDoc.target_name,
+        concretized_by: newDoc.concretized_by || null,
+        target_name: newDoc.target_name || null,
         target_percent: newDoc.target_percent,
         sub_targets: JSON.stringify(newDoc.sub_targets || []),
       };
       const { data, error } = await supabase.from("tasks").insert([payload]).select();
       if (error) {
-        alert("⚠️ Cảnh báo Supabase: Không thể ghi vào bảng tasks (" + error.message + "). Dữ liệu đã lưu tạm vào bộ nhớ trình duyệt.");
+        alert("⚠️ Lỗi Supabase không ghi được dữ liệu: " + error.message + "\nVui lòng chạy file SQL supabase_schema_fix.sql trong Supabase SQL Editor!");
       } else if (data && data.length > 0) {
         newDoc.id = data[0].id;
+        alert(`✓ Đã lưu thành công văn bản ${newDoc.doc_number} lên Supabase! Mở trên điện thoại sẽ thấy ngay.`);
       }
+    } else {
+      alert("⚠️ Lưu ý: Chưa kết nối Supabase (thiếu biến môi trường NEXT_PUBLIC_SUPABASE_URL). Dữ liệu chỉ đang lưu tạm trên máy này!");
     }
 
     setDocs([newDoc, ...docs]);
     setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     setIsUploading(false);
-    setFormSuccessMsg(`Đã tiếp nhận và lưu trữ thành công văn bản ${newDoc.doc_number}!`);
+    setFormSuccessMsg(`Đã tiếp nhận thành công văn bản ${newDoc.doc_number}!`);
     setTimeout(() => setFormSuccessMsg(""), 4000);
 
     setFormDocNumber("");
@@ -751,7 +753,7 @@ export default function DocumentTaskTracker() {
     setFormSubTargets([{ name: "", percent: 0, deadline: "2026-12-31", bottleneck_reason: "", proposed_solution: "" }]);
   };
 
-  // 2. LƯU CẬP NHẬT VĂN BẢN VÀO SUPABASE
+  // 2. CẬP NHẬT VĂN BẢN VÀO SUPABASE
   const handleUpdateDoc = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!editingDoc || !canEdit) return;
@@ -783,32 +785,36 @@ export default function DocumentTaskTracker() {
         status: updatedDoc.status,
         doc_number: updatedDoc.doc_number,
         issuer: updatedDoc.issuer,
-        file_url: updatedDoc.file_url,
-        doc_url: updatedDoc.doc_url,
-        file_name: updatedDoc.file_name,
+        file_url: updatedDoc.file_url || null,
+        doc_url: updatedDoc.doc_url || null,
+        file_name: updatedDoc.file_name || null,
         is_concretized: updatedDoc.is_concretized,
-        concretized_by: updatedDoc.concretized_by,
+        concretized_by: updatedDoc.concretized_by || null,
       };
 
-      // Kiểm tra nếu ID dạng số (đã có trong Supabase)
       if (typeof updatedDoc.id === "number" || !isNaN(Number(updatedDoc.id))) {
-        const { error } = await supabase.from("tasks").update(payload).eq("id", updatedDoc.id);
+        const { error } = await supabase.from("tasks").update(payload).eq("id", Number(updatedDoc.id));
         if (error) {
           alert("Lỗi cập nhật trên Supabase: " + error.message);
+        } else {
+          alert(`✓ Đã cập nhật văn bản ${updatedDoc.doc_number} lên Supabase thành công!`);
         }
       } else {
-        // Nếu là ID mẫu chưa có trên Supabase, insert mới vào CSDL
-        await supabase.from("tasks").insert([payload]);
+        // Nếu là văn bản mẫu (p-1, tw-1) chưa có trong DB, tự động insert thành dòng mới
+        const { data, error } = await supabase.from("tasks").insert([payload]).select();
+        if (!error && data && data.length > 0) {
+          updatedDoc.id = data[0].id;
+          alert(`✓ Đã lưu văn bản ${updatedDoc.doc_number} lên CSDL Supabase thành công!`);
+        }
       }
     }
 
     setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     setEditingDoc(null);
     setFormFile(null);
-    alert(`Đã cập nhật thành công văn bản ${updatedDoc.doc_number}!`);
   };
 
-  // 3. XÓA VĂN BẢN KHỎI SUPABASE
+  // 3. XÓA VĂN BẢN TRÊN SUPABASE
   const handleDeleteDoc = async (id: string | number) => {
     if (!canAdmin) {
       alert("Chỉ quản trị viên mới có quyền xóa văn bản.");
@@ -819,14 +825,14 @@ export default function DocumentTaskTracker() {
 
     if (isSupabaseConfigured && supabase) {
       if (typeof id === "number" || !isNaN(Number(id))) {
-        const { error } = await supabase.from("tasks").delete().eq("id", id);
-        if (error) console.error("Lỗi xóa trên Supabase:", error);
+        const { error } = await supabase.from("tasks").delete().eq("id", Number(id));
+        if (error) alert("Lỗi xóa trên Supabase: " + error.message);
       }
     }
     setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
   };
 
-  // 4. LƯU THAY ĐỔI TIẾN ĐỘ & CHỈ TIÊU KẾ HOẠCH VÀO SUPABASE
+  // 4. LƯU CHỈ TIÊU KẾ HOẠCH VÀO SUPABASE (TỰ ĐỘNG CHUYỂN THÀNH DÒNG SUPABASE NẾU CHƯA CÓ)
   const handleUpdateSelectedPlanTargets = async (docId: string | number, newSubTargets: SubTarget[]) => {
     if (!canEdit) return;
 
@@ -855,12 +861,15 @@ export default function DocumentTaskTracker() {
       };
 
       if (typeof docId === "number" || !isNaN(Number(docId))) {
-        const { error } = await supabase.from("tasks").update(payload).eq("id", docId);
+        const { error } = await supabase.from("tasks").update(payload).eq("id", Number(docId));
         if (error) {
-          console.error("Lỗi cập nhật chỉ tiêu trên Supabase:", error);
+          alert("Lỗi lưu chỉ tiêu lên Supabase: " + error.message);
+        } else {
+          setFormSuccessMsg("✓ Đã lưu chỉ tiêu lên Supabase (Điện thoại sẽ thấy ngay)");
+          setTimeout(() => setFormSuccessMsg(""), 3000);
         }
       } else {
-        // Nếu là văn bản mẫu (p-1, p-2) chưa ghi vào Supabase, ghi trực tiếp cả văn bản vào CSDL
+        // ĐÂY CHÍNH LÀ NƠI FIX LỖI: Nếu là kế hoạch mẫu p-1, p-2, insert trực tiếp cả Kế hoạch vào Supabase
         const fullPayload: any = {
           title: `${targetDoc.doc_number}: ${targetDoc.title}`,
           level: targetDoc.level,
@@ -874,13 +883,18 @@ export default function DocumentTaskTracker() {
           target_percent: planCompletedPercent,
           sub_targets: JSON.stringify(newSubTargets),
         };
-        const { data } = await supabase.from("tasks").insert([fullPayload]).select();
-        if (data && data.length > 0) {
+        const { data, error } = await supabase.from("tasks").insert([fullPayload]).select();
+        if (error) {
+          alert("Lỗi lưu chỉ tiêu lên Supabase: " + error.message);
+        } else if (data && data.length > 0) {
           updated.id = data[0].id;
           setSelectedPlanId(String(data[0].id));
           setDocs(docs.map(d => String(d.id) === String(docId) ? updated : d));
+          alert("✓ Kế hoạch và các chỉ tiêu đã được lưu vĩnh viễn vào Supabase! Điện thoại mở ra sẽ thấy ngay.");
         }
       }
+    } else {
+      alert("⚠️ Chưa kết nối được Supabase (thiếu biến môi trường NEXT_PUBLIC_SUPABASE_URL). Chỉ tiêu chỉ lưu tạm trên máy này!");
     }
 
     setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
@@ -896,7 +910,7 @@ export default function DocumentTaskTracker() {
 
     if (isSupabaseConfigured && supabase) {
       if (typeof id === "number" || !isNaN(Number(id))) {
-        await supabase.from("tasks").update({ is_concretized: true, concretized_by: input.trim() }).eq("id", id);
+        await supabase.from("tasks").update({ is_concretized: true, concretized_by: input.trim() }).eq("id", Number(id));
       } else {
         const docItem = docs.find(d => d.id === id);
         if (docItem) {
@@ -938,7 +952,6 @@ export default function DocumentTaskTracker() {
     setIsUserModalOpen(true);
   };
 
-  // 6. LƯU NGƯỜI DÙNG VÀO SUPABASE TABLE APP_USERS
   const handleSaveUser = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!userFormUsername.trim() || !userFormFullName.trim()) {
@@ -1019,7 +1032,6 @@ export default function DocumentTaskTracker() {
     return list;
   }, [wardPlans]);
 
-  // ĐIỂM NGHẼN THỂ CHẾ
   const institutionalBottlenecks = useMemo(() => {
     return docs.filter(d => (d.level === "Trung ương" || d.level === "Thành ủy") && !d.is_concretized);
   }, [docs]);
@@ -1060,7 +1072,6 @@ export default function DocumentTaskTracker() {
     return docs.filter(d => d.level === adminDocSubTab);
   }, [docs, adminDocSubTab]);
 
-  // AI GEMINI TRẢ LỜI NGẮN GỌN, SẮC BÉN
   const askGeminiAssistant = async (queryText: string) => {
     if (!queryText.trim()) return;
 
@@ -1098,7 +1109,7 @@ export default function DocumentTaskTracker() {
         }
       }
     } catch (err) {
-      console.warn("Gọi API Gemini thất bại, dùng bộ phân tích nội bộ:", err);
+      console.warn("Lỗi API Gemini:", err);
     }
 
     setTimeout(() => {
@@ -1116,7 +1127,7 @@ export default function DocumentTaskTracker() {
           `• **Cơ quan & Ngày**: ${matchedDoc.issuer} (${matchedDoc.issue_date})\n` +
           (matchedDoc.level === "Phường" 
             ? `• **Tiến độ**: ${matchedDoc.target_percent}% chỉ tiêu cán đích 100% (${matchedDoc.sub_targets?.length || 0} chỉ tiêu)`
-            : `• **Tình trạng cụ thể hóa**: ${matchedDoc.is_concretized ? `Đã có văn bản ${matchedDoc.concretized_by}` : "CHƯA CỤ THỂ HÓA (ĐIỂM NGHẼN THỂ CHẾ)"}`);
+            : `• **Tình trạng thể chế**: ${matchedDoc.is_concretized ? `Đã có văn bản ${matchedDoc.concretized_by}` : "CHƯA CỤ THỂ HÓA (ĐIỂM NGHẼN THỂ CHẾ)"}`);
       } else if (qLower.includes("thể chế") || qLower.includes("cụ thể hóa") || qLower.includes("chưa ban hành")) {
         if (institutionalBottlenecks.length === 0) {
           responseText = `✓ Không có điểm nghẽn thể chế. 100% văn bản Trung ương và Thành ủy đã được ban hành văn bản cụ thể hóa.`;
@@ -1157,7 +1168,6 @@ export default function DocumentTaskTracker() {
     chatBottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [chatMessages, isAiThinking]);
 
-  // Tạo kiến nghị báo cáo bằng AI
   const generateAiReportSectionIV = () => {
     setIsAiGeneratingReportSection(true);
 
@@ -1195,7 +1205,7 @@ export default function DocumentTaskTracker() {
     }, 400);
   };
 
-  // HÀM IN BÁO CÁO CÔ LẬP CHUẨN XÁC 1 TRANG A4 BẰNG POPUP (100% KHÔNG LỖI CO KÉO, KHÔNG TRÀN TRANG)
+  // IN BÁO CÁO QUA CỬA SỔ RIÊNG BIỆT (KHÔNG BỊ LỖI CO KÉO, CHUẨN XÁC 1 TRANG A4)
   const handlePrintReport = () => {
     const reportElem = document.getElementById("printable-party-report");
     if (!reportElem) return;
@@ -1282,7 +1292,7 @@ export default function DocumentTaskTracker() {
 
   return (
     <div className="flex min-h-screen bg-[#f8fafc] font-sans text-slate-800 antialiased selection:bg-rose-500 selection:text-white">
-      {/* Drawer Overlay trên Mobile */}
+      {/* Mobile Drawer Overlay */}
       {mobileMenuOpen && (
         <div
           onClick={() => setMobileMenuOpen(false)}
@@ -1510,14 +1520,14 @@ export default function DocumentTaskTracker() {
           </div>
 
           <div className="flex items-center gap-2 md:gap-3">
-            {/* Nút kiểm tra đồng bộ Supabase */}
-            {canAdmin && isSupabaseConfigured && (
+            {/* NÚT NẠP CSDL SUPABASE TRỰC TIẾP */}
+            {canAdmin && (
               <button
                 onClick={handleSeedDataToSupabase}
-                className="hidden lg:flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-emerald-50 text-slate-700 hover:text-emerald-700 border border-slate-200 hover:border-emerald-200 rounded-xl text-xs font-bold transition cursor-pointer"
-                title="Đẩy toàn bộ dữ liệu mẫu lên lưu trữ vĩnh viễn trên Supabase"
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 text-emerald-800 border border-emerald-300 rounded-xl text-xs font-bold transition cursor-pointer shadow-2xs"
+                title="Bấm để đẩy toàn bộ danh mục văn bản và kế hoạch vào Supabase ngay"
               >
-                <span>☁️</span> <span>Nạp CSDL Supabase</span>
+                <span>☁️</span> <span className="hidden md:inline">Nạp CSDL Supabase</span>
               </button>
             )}
 
@@ -1563,15 +1573,36 @@ export default function DocumentTaskTracker() {
         </header>
 
         <div className="p-4 md:p-6 max-w-7xl w-full mx-auto space-y-6">
-          {/* CẢNH BÁO NẾU CHƯA CẤU HÌNH SUPABASE BIẾN MÔI TRƯỜNG */}
-          {!isSupabaseConfigured && (
-            <div className="p-4 bg-amber-50 border border-amber-300 rounded-2xl flex items-center justify-between gap-3 text-xs text-amber-900">
-              <div className="flex items-center gap-2">
-                <span className="text-base">⚠️</span>
+          {/* CẢNH BÁO NẾU CHƯA CẤU HÌNH SUPABASE TRÊN VERCEL */}
+          {!isSupabaseConfigured ? (
+            <div className="p-4 bg-rose-50 border border-rose-300 rounded-2xl flex items-start justify-between gap-3 text-xs text-rose-900 shadow-sm">
+              <div className="flex items-start gap-2.5">
+                <span className="text-xl">⚠️</span>
                 <div>
-                  <strong>Chưa kết nối Supabase trên môi trường hiện tại:</strong> Hệ thống đang lưu tạm vào trình duyệt. Hãy cấu hình <code>NEXT_PUBLIC_SUPABASE_URL</code> và <code>NEXT_PUBLIC_SUPABASE_ANON_KEY</code> trên Vercel hoặc file <code>.env.local</code> để dữ liệu lưu vĩnh viễn trên đám mây.
+                  <strong className="font-bold text-sm block">Vercel chưa được kết nối với cơ sở dữ liệu Supabase:</strong>
+                  <p className="mt-0.5 leading-relaxed">
+                    Đây chính là lý do đồng chí thêm trên máy tính nhưng mở điện thoại không thấy! Trên Vercel đang thiếu 2 biến môi trường: <code className="bg-rose-100 px-1.5 py-0.5 rounded font-mono font-bold">NEXT_PUBLIC_SUPABASE_URL</code> và <code className="bg-rose-100 px-1.5 py-0.5 rounded font-mono font-bold">NEXT_PUBLIC_SUPABASE_ANON_KEY</code>.
+                  </p>
                 </div>
               </div>
+            </div>
+          ) : (
+            <div className="flex items-center justify-between px-3.5 py-2 bg-emerald-50/80 border border-emerald-200/80 rounded-xl text-xs text-emerald-900">
+              <div className="flex items-center gap-2 font-medium">
+                <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
+                <span>Đã kết nối cơ sở dữ liệu đám mây Supabase. Mọi thay đổi sẽ đồng bộ tức thì trên cả điện thoại và máy tính.</span>
+              </div>
+              {lastSyncTime && (
+                <span className="text-[10px] text-emerald-700 font-mono font-bold">
+                  Đồng bộ: {lastSyncTime}
+                </span>
+              )}
+            </div>
+          )}
+
+          {statusNotice && (
+            <div className="p-3 bg-amber-50 border border-amber-300 rounded-xl text-xs text-amber-900 font-bold">
+              {statusNotice}
             </div>
           )}
 
@@ -2715,7 +2746,6 @@ export default function DocumentTaskTracker() {
                   <span>✨</span> {isAiGeneratingReportSection ? "Đang tạo..." : "Tạo kiến nghị AI"}
                 </button>
 
-                {/* NÚT IN ĐƯỢC THAY THẾ BẰNG HÀM IN CÔ LẬP KHỔ A4 */}
                 <button
                   onClick={handlePrintReport}
                   className="px-3 py-1 bg-red-600 hover:bg-red-700 text-white text-[11px] md:text-xs font-bold rounded-lg cursor-pointer flex items-center gap-1 shadow-sm"
@@ -3112,7 +3142,7 @@ export default function DocumentTaskTracker() {
         </div>
       )}
 
-      {/* MODAL ĐĂNG NHẬP (ĐÃ BỎ HOÀN TOÀN KHUNG GỢI Ý MẬT KHẨU) */}
+      {/* MODAL ĐĂNG NHẬP */}
       {isAuthModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-3 md:p-4">
           <div className="bg-white rounded-3xl shadow-2xl max-w-sm w-full overflow-hidden border border-slate-200 animate-in fade-in zoom-in duration-150">
