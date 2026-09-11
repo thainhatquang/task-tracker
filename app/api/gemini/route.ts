@@ -2,20 +2,24 @@ import { NextResponse } from "next/server";
 
 export async function POST(req: Request) {
   try {
-    const { query, docs } = await req.json();
+    const body = await req.json();
+    const query = typeof body?.query === "string" ? body.query : "";
+    const docs = Array.isArray(body?.docs) ? body.docs : [];
 
-    const apiKey = process.env.GEMINI_API_KEY;
+    const apiKey = process.env.GEMINI_API_KEY || process.env.GOOGLE_API_KEY;
+    const model = process.env.GEMINI_MODEL || "gemini-2.0-flash";
+
     if (!apiKey) {
       return NextResponse.json(
-        { error: "Chưa cấu hình GEMINI_API_KEY." },
+        {
+          error:
+            "Chưa cấu hình API key Gemini. Thêm GEMINI_API_KEY hoặc GOOGLE_API_KEY vào file .env.local.",
+        },
         { status: 500 }
       );
     }
 
-    // 1. Chuẩn bị ngữ cảnh dữ liệu sống từ CSDL phường
-    const contextSummary = JSON.stringify(docs || [], null, 2);
-
-    // 2. Định hình System Prompt chuyên môn công tác Đảng
+    const contextSummary = JSON.stringify(docs, null, 2);
     const systemPrompt = `Bạn là Trợ lý AI Tham mưu cấp cao của Đảng ủy phường Trung Nhứt (thuộc Đảng bộ thành phố Cần Thơ), hỗ trợ Thường trực và Văn phòng Đảng ủy.
 Nhiệm vụ của bạn là phân tích, tra cứu và trả lời các câu hỏi dựa trên CƠ SỞ DỮ LIỆU SỐ THỜI GIAN THỰC dưới đây:
 
@@ -30,17 +34,20 @@ Yêu cầu phản hồi:
 4. Nếu được yêu cầu "tổng hợp kiến nghị Phần IV báo cáo": Tổng hợp 4 nhóm nhiệm vụ giải pháp trọng tâm tháo gỡ các điểm nghẽn thực tế trên dữ liệu để trình Thường trực Đảng ủy xem xét kết luận.
 5. Giữ văn phong hành chính Đảng trang trọng, chính xác, mạch lạc; sử dụng gạch đầu dòng rõ ràng.`;
 
-    // 3. Gọi trực tiếp Google Gemini 1.5 Flash REST API
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
+          systemInstruction: {
+            role: "system",
+            parts: [{ text: systemPrompt }],
+          },
           contents: [
             {
               role: "user",
-              parts: [{ text: `${systemPrompt}\n\nCâu hỏi của cán bộ: "${query}"` }],
+              parts: [{ text: `Câu hỏi của cán bộ: "${query}"` }],
             },
           ],
           generationConfig: {
@@ -51,17 +58,38 @@ Yêu cầu phản hồi:
       }
     );
 
-    if (!response.ok) {
-      return NextResponse.json({ error: "Lỗi kết nối Gemini API." }, { status: response.status });
+    const responseText = await response.text();
+    let parsedError: any = null;
+
+    try {
+      parsedError = JSON.parse(responseText);
+    } catch {
+      // Ignore parse errors and use raw text if needed.
     }
 
-    const data = await response.json();
+    if (!response.ok) {
+      const detail =
+        parsedError?.error?.message ||
+        parsedError?.message ||
+        responseText ||
+        "Lỗi kết nối Gemini API.";
+
+      return NextResponse.json(
+        {
+          error: `Lỗi kết nối Gemini API: ${detail}`,
+        },
+        { status: response.status }
+      );
+    }
+
+    const data = parsedError || JSON.parse(responseText || "{}");
     const replyText =
-      data.candidates?.[0]?.content?.parts?.[0]?.text ||
+      data?.candidates?.[0]?.content?.parts?.[0]?.text ||
       "Không nhận được phản hồi từ AI Gemini.";
 
     return NextResponse.json({ reply: replyText });
-  } catch (error: any) {
-    return NextResponse.json({ error: "Lỗi xử lý hệ thống." }, { status: 500 });
+  } catch (error: unknown) {
+    const message = error instanceof Error ? error.message : "Lỗi xử lý hệ thống.";
+    return NextResponse.json({ error: `Lỗi xử lý hệ thống: ${message}` }, { status: 500 });
   }
 }
