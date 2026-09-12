@@ -1,0 +1,12 @@
+{
+    "chat.tools.terminal.autoApprove": {
+        "/^npx eslint app/page\\.tsx$/": {
+            "approve": true,
+            "matchCommandLine": true
+        },
+        "/^New-Item -ItemType Directory -Force -Path \"components/dashboard\", \"components/chat\", \"hooks\"$/": {
+            "approve": true,
+            "matchCommandLine": true
+        }
+    }
+}

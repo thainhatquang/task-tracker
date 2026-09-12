@@ -1,8 +1,17 @@
 @import "tailwindcss";
 
 :root {
-  --background: #ffffff;
-  --foreground: #171717;
+  --palette-deep: #264653;
+  --palette-teal: #2a9d8f;
+  --palette-yellow: #e9c46a;
+  --palette-orange: #f4a261;
+  --palette-coral: #e76f51;
+  --background: #fdfaf6;
+  --foreground: #264653;
+  --primary: #2a9d8f;
+  --primary-dark: #264653;
+  --ink: #264653;
+  --muted: #6a8a8a;
 }
 
 @theme inline {
@@ -14,13 +23,280 @@
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #0a0a0a;
-    --foreground: #ededed;
+    --background: #264653;
+    --foreground: #fdfaf6;
   }
 }
 
 body {
   background: var(--background);
   color: var(--foreground);
-  font-family: Arial, Helvetica, sans-serif;
+  font-family: var(--font-geist-sans), Arial, Helvetica, sans-serif;
+  text-rendering: optimizeLegibility;
+}
+
+button,
+a,
+input,
+select,
+textarea {
+  -webkit-tap-highlight-color: transparent;
+}
+
+button:focus-visible,
+a:focus-visible,
+input:focus-visible,
+select:focus-visible,
+textarea:focus-visible {
+  outline: 3px solid rgb(42 157 143 / 40%);
+  outline-offset: 2px;
+}
+
+::selection {
+  background: rgb(231 111 81 / 22%);
+  color: var(--ink);
+}
+
+.app-shell {
+  background:
+    radial-gradient(circle at 15% -10%, rgb(231 111 81 / 10%), transparent 28rem),
+    radial-gradient(circle at 100% 0%, rgb(233 196 106 / 25%), transparent 32rem),
+    linear-gradient(135deg, #fffcf8 0%, #fdfaf6 52%, #f5f0e6 100%);
+}
+
+.auth-shell {
+  background:
+    radial-gradient(circle at 0% 0%, rgb(231 111 81 / 25%), transparent 24rem),
+    radial-gradient(circle at 100% 100%, rgb(42 70 83 / 25%), transparent 28rem),
+    #264653;
+}
+
+.auth-card {
+  background: rgb(255 255 255 / 8%);
+  border: 1px solid rgb(255 255 255 / 15%);
+  box-shadow: 0 30px 80px rgb(2 6 23 / 35%);
+  backdrop-filter: blur(24px);
+}
+
+.auth-input {
+  background: rgb(255 255 255 / 10%);
+  border: 1px solid rgb(255 255 255 / 15%);
+  color: white;
+}
+
+.auth-input::placeholder {
+  color: rgb(148 163 184 / 75%);
+}
+
+.auth-input:focus {
+  border-color: rgb(168 218 220 / 90%);
+  box-shadow: 0 0 0 4px rgb(168 218 220 / 22%);
+  outline: none;
+}
+
+/* Map legacy utility colors to the selected Coolors palette. */
+.bg-slate-950, .bg-slate-900 { background-color: var(--palette-deep) !important; }
+.bg-slate-800, .bg-slate-700 { background-color: var(--palette-deep) !important; }
+.bg-blue-600, .bg-blue-700 { background-color: var(--palette-teal) !important; }
+.bg-emerald-500, .bg-emerald-600 { background-color: var(--palette-teal) !important; }
+.bg-amber-500, .bg-yellow-400 { background-color: var(--palette-yellow) !important; }
+.bg-red-600, .bg-rose-600, .bg-rose-500 { background-color: var(--palette-coral) !important; }
+.bg-purple-600, .bg-purple-700, .bg-indigo-600, .bg-indigo-700 { background-color: var(--palette-teal) !important; }
+.bg-cyan-400, .bg-cyan-500, .bg-teal-400, .bg-teal-500 { background-color: var(--palette-yellow) !important; }
+.text-blue-600, .text-blue-700 { color: var(--palette-teal) !important; }
+.text-emerald-700, .text-emerald-800 { color: #245f78 !important; }
+.text-amber-700, .text-amber-800 { color: #28506e !important; }
+.text-rose-600, .text-rose-700, .text-red-700 { color: #b42332 !important; }
+.text-purple-700, .text-purple-800, .text-indigo-700, .text-indigo-800 { color: #245f78 !important; }
+.text-cyan-700, .text-cyan-800, .text-teal-700, .text-teal-800 { color: #245f78 !important; }
+.border-blue-200, .border-blue-300 { border-color: rgb(69 123 157 / 40%) !important; }
+.border-amber-200, .border-amber-300 { border-color: rgb(168 218 220 / 75%) !important; }
+.border-rose-200, .border-rose-300 { border-color: rgb(230 57 70 / 45%) !important; }
+.border-purple-200, .border-purple-300, .border-indigo-200, .border-indigo-300 { border-color: rgb(69 123 157 / 40%) !important; }
+.border-cyan-200, .border-cyan-300, .border-teal-200, .border-teal-300 { border-color: rgb(168 218 220 / 75%) !important; }
+.from-blue-600 { --tw-gradient-from: var(--palette-teal) var(--tw-gradient-from-position); }
+.to-indigo-600, .to-blue-950 { --tw-gradient-to: var(--palette-deep) var(--tw-gradient-to-position); }
+.from-rose-600, .from-red-600 { --tw-gradient-from: var(--palette-coral) var(--tw-gradient-from-position); }
+.to-red-500, .to-rose-600 { --tw-gradient-to: var(--palette-coral) var(--tw-gradient-to-position); }
+.from-pink-500, .from-purple-600 { --tw-gradient-from: var(--palette-coral) var(--tw-gradient-from-position); }
+.to-indigo-600, .to-cyan-500, .to-teal-400 { --tw-gradient-to: var(--palette-teal) var(--tw-gradient-to-position); }
+.from-emerald-500, .from-amber-500 { --tw-gradient-from: var(--palette-yellow) var(--tw-gradient-from-position); }
+.to-emerald-400, .to-yellow-400 { --tw-gradient-to: var(--palette-orange) var(--tw-gradient-to-position); }
+
+/* Yellow is intentionally paired with deep teal text, never white text. */
+.bg-amber-500.text-white,
+.bg-yellow-400.text-white {
+  color: var(--palette-deep) !important;
+}
+
+.bg-amber-500.text-slate-950,
+.bg-yellow-400.text-slate-950 {
+  color: var(--palette-deep) !important;
+}
+
+.bg-amber-100.text-amber-800,
+.bg-yellow-100.text-yellow-800 {
+  color: #5f4914 !important;
+}
+
+.glass-panel {
+  background: rgb(255 255 255 / 84%);
+  border: 1px solid rgb(226 232 240 / 80%);
+  box-shadow: 0 18px 45px rgb(15 23 42 / 7%), 0 2px 8px rgb(15 23 42 / 3%);
+  backdrop-filter: blur(16px);
+}
+
+.modern-surface {
+  background: rgb(255 255 255 / 88%);
+  border: 1px solid rgb(226 232 240 / 85%);
+  border-radius: 1.5rem;
+  box-shadow: 0 16px 38px rgb(15 23 42 / 6%);
+  backdrop-filter: blur(14px);
+}
+
+.modern-surface:hover {
+  border-color: rgb(203 213 225 / 100%);
+  box-shadow: 0 20px 42px rgb(15 23 42 / 8%);
+}
+
+.tracker-sidebar .text-slate-300,
+.tracker-sidebar .text-slate-400,
+.tracker-sidebar .text-slate-500 {
+  color: #dbeaf2 !important;
+}
+
+.tracker-sidebar .text-slate-600 {
+  color: #b8d3e2 !important;
+}
+
+.tracker-sidebar .text-blue-200 {
+  color: #d6f1f2 !important;
+}
+
+.tracker-sidebar .text-amber-500 {
+  color: #a8dadc !important;
+}
+
+.tracker-sidebar .text-rose-700 {
+  color: #ffd7da !important;
+}
+
+.tracker-sidebar nav > div {
+  color: #b8d3e2 !important;
+}
+
+.tracker-sidebar .palette-tab-active {
+  background: #d9eef0 !important;
+  color: #24506f !important;
+  border-color: #a8dadc !important;
+}
+
+.tracker-sidebar .palette-admin-active {
+  background: rgb(69 123 157 / 34%) !important;
+  color: #ffffff !important;
+  border-color: rgb(168 218 220 / 70%) !important;
+}
+
+.palette-primary-button {
+  background: #457b9d;
+  color: #ffffff;
+  border-color: #2f5f80;
+}
+
+.palette-primary-button:hover {
+  background: #1d3557;
+}
+
+.palette-coral-button {
+  background: #e63946;
+  color: #ffffff;
+  border-color: #b42332;
+}
+
+.palette-coral-button:hover {
+  background: #b42332;
+}
+
+.palette-tab-active {
+  background: #d9eef0;
+  color: #24506f;
+  border-color: #a8dadc;
+}
+
+.palette-admin-active {
+  background: rgb(69 123 157 / 28%);
+  color: #effffb;
+  border-color: rgb(168 218 220 / 60%);
+}
+
+.palette-sidebar-primary {
+  background: linear-gradient(135deg, #e63946, #457b9d);
+  color: #ffffff;
+  border-color: rgb(255 255 255 / 35%);
+}
+
+.tracker-sidebar {
+  background:
+    radial-gradient(circle at 10% 0%, rgb(168 218 220 / 22%), transparent 16rem),
+    linear-gradient(180deg, #1d3557 0%, #244563 58%, #1d3557 100%) !important;
+}
+
+.tracker-sidebar nav > button,
+.tracker-sidebar nav > a {
+  min-height: 2.5rem;
+}
+
+.tracker-sidebar nav > button:not(.palette-sidebar-primary):not(.palette-tab-active):not(.palette-admin-active):hover,
+.tracker-sidebar nav > a:hover {
+  background: rgb(69 123 157 / 24%);
+}
+
+.app-shell .text-slate-400 {
+  color: #547078;
+}
+
+.app-shell .text-slate-500 {
+  color: #47636a;
+}
+
+.app-shell main table thead th {
+  color: #3d5b62;
+}
+
+main table {
+  border-collapse: separate;
+  border-spacing: 0;
+}
+
+main table thead th {
+  font-size: 0.65rem;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #64748b;
+  background: rgb(248 250 252 / 90%);
+}
+
+main table tbody tr {
+  transition: background-color 160ms ease, transform 160ms ease;
+}
+
+main table tbody tr:hover {
+  background: rgb(248 250 252 / 85%);
+}
+
+@media (prefers-reduced-motion: no-preference) {
+  .modern-surface {
+    animation: surface-enter 420ms ease both;
+  }
+}
+
+@keyframes surface-enter {
+  from {
+    opacity: 0;
+    transform: translateY(5px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
 }

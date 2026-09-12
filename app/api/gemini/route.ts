@@ -23,7 +23,12 @@ type GeminiDoc = {
 
 export async function POST(req: Request) {
   try {
+    // The dashboard and its AI assistant are intentionally public. The
+    // Gemini key remains server-only and input is validated before use.
     const { query, docs } = (await req.json()) as { query?: string; docs?: GeminiDoc[] };
+    if (typeof query !== "string" || query.trim().length === 0 || query.length > 4000) {
+      return NextResponse.json({ error: "Câu hỏi không hợp lệ." }, { status: 400 });
+    }
 
     const apiKey = process.env.GEMINI_API_KEY;
     if (!apiKey) {
@@ -85,10 +90,19 @@ NGUYÊN TẮC TRẢ LỜI BẮT BUỘC (HUẤN LUYỆN ĐẶC BIỆT):
 1. TRẢ LỜI CỰC KỲ NGẮN GỌN, TẬP TRUNG, ĐI THẲNG VÀO VẤN ĐỀ.
 2. TUYỆT ĐỐI KHÔNG chào hỏi rườm rà, KHÔNG mở bài / kết bài sáo rỗng.
 3. Trả lời bằng các gạch đầu dòng ngắn, rõ ý, đầy đủ số liệu thực tế.
-4. Chỉ dựa vào dữ liệu trên, không bịa đặt số liệu không có trong hồ sơ.`;
+4. Chỉ dựa vào dữ liệu trên, không bịa đặt số liệu không có trong hồ sơ.
+
+VÍ DỤ MẪU (FEW-SHOT):
+Hỏi: "Có bao nhiêu văn bản Trung ương chưa cụ thể hóa?"
+Đáp: "- 02 văn bản TW chưa cụ thể hóa (Số 123, Số 456)."
+Hỏi: "Tiến độ thực hiện của phường hiện nay ra sao?"
+Đáp: "- Tổng số kế hoạch: 05.
+- Hoàn thành: 03 (60%).
+- Đang thực hiện: 02 (40%).
+- Điểm nghẽn: 01 chỉ tiêu về môi trường đạt 70% do thiếu nhân lực.`;
 
     const response = await fetch(
-      `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`,
+      `https://generativelanguage.googleapis.com/v1beta/models/${model}:streamGenerateContent?key=${apiKey}`,
       {
         method: "POST",
         headers: { "Content-Type": "application/json" },
@@ -112,15 +126,63 @@ NGUYÊN TẮC TRẢ LỜI BẮT BUỘC (HUẤN LUYỆN ĐẶC BIỆT):
       return NextResponse.json({ error: `Lỗi kết nối Gemini API: ${errText}` }, { status: response.status });
     }
 
-    const data = (await response.json()) as {
-      candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
-    };
-    const replyText = data.candidates?.[0]?.content?.parts?.[0]?.text || "Không có dữ liệu phù hợp với câu hỏi.";
+    const stream = response.body;
+    const encoder = new TextEncoder();
+    const decoder = new TextDecoder();
 
-    return NextResponse.json({ reply: replyText.trim() });
+    const readableStream = new ReadableStream({
+      async start(controller) {
+        const reader = stream?.getReader();
+        if (!reader) {
+          controller.close();
+          return;
+        }
+
+        let pending = "";
+        const enqueueText = (line: string) => {
+          const cleanedLine = line.trim().replace(/^,/, "");
+          if (!cleanedLine || cleanedLine === "[" || cleanedLine === "]") return;
+          try {
+            const json = JSON.parse(cleanedLine) as {
+              candidates?: Array<{ content?: { parts?: Array<{ text?: string }> } }>;
+            };
+            const text = json.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (text) controller.enqueue(encoder.encode(text));
+          } catch {
+            // Incomplete JSON remains buffered until the next network chunk.
+          }
+        };
+
+        try {
+          while (true) {
+            const { done, value } = await reader.read();
+            if (done) break;
+
+            pending += decoder.decode(value, { stream: true });
+            const lines = pending.split(/\r?\n/);
+            pending = lines.pop() || "";
+            for (const line of lines) {
+              enqueueText(line);
+            }
+          }
+          pending += decoder.decode();
+          if (pending.trim()) enqueueText(pending);
+        } catch (err) {
+          console.error("Stream error:", err);
+        } finally {
+          controller.close();
+        }
+      },
+    });
+
+    return new Response(readableStream, {
+      headers: {
+        "Content-Type": "text/plain; charset=utf-8",
+        "Transfer-Encoding": "chunked",
+      },
+    });
   } catch (error) {
     console.error("Gemini route error", error);
     return NextResponse.json({ error: "Lỗi hệ thống máy chủ." }, { status: 500 });
   }
 }
-
