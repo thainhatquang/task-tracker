@@ -1,10 +1,32 @@
 "use client";
 
-import React, { useState, useEffect, useMemo, useRef } from "react";
+import React, { useState, useEffect, useMemo, useRef, useCallback } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 type TabType = "tong_quan" | "trung_uong" | "thanh_uy" | "phuong" | "admin_docs" | "admin_targets" | "admin_users";
 type UserRole = "viewer" | "editor" | "admin";
+type DocLevel = "Trung ương" | "Thành ủy" | "Phường";
+type DocStatus = "Chưa thực hiện" | "Đang thực hiện" | "Hoàn thành";
+
+type TaskRow = {
+  id?: string | number;
+  doc_number?: string;
+  title?: string;
+  issue_date?: string;
+  deadline?: string;
+  issuer?: string;
+  level?: DocLevel | string;
+  file_url?: string | null;
+  doc_url?: string | null;
+  file_name?: string | null;
+  is_concretized?: boolean;
+  concretized_by?: string | null;
+  assignee?: string;
+  target_name?: string | null;
+  target_percent?: number;
+  status?: DocStatus | string;
+  sub_targets?: SubTarget[] | string;
+};
 
 export interface UserAccount {
   id: string;
@@ -148,12 +170,22 @@ export default function DocumentTaskTracker() {
   const [isAiThinking, setIsAiThinking] = useState(false);
   const chatBottomRef = useRef<HTMLDivElement>(null);
 
-  const [currentUser, setCurrentUser] = useState<UserAccount | null>(null);
+  const [currentUser, setCurrentUser] = useState<UserAccount | null>(() => {
+    if (typeof window === "undefined") return null;
+    try {
+      const savedUserStr = localStorage.getItem("party_current_user_v21");
+      if (!savedUserStr) return null;
+      const u = JSON.parse(savedUserStr) as UserAccount | null;
+      return u && u.username ? u : null;
+    } catch {
+      return null;
+    }
+  });
   const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
   const [loginUsername, setLoginUsername] = useState("");
   const [loginPassword, setLoginPassword] = useState("");
   const [loginError, setLoginError] = useState("");
-  const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "live" | "off">("off");
+  const [realtimeStatus, setRealtimeStatus] = useState<"connecting" | "live" | "off">(() => (isSupabaseConfigured && supabase ? "connecting" : "off"));
   const [lastSyncTime, setLastSyncTime] = useState<string>("");
   const [statusNotice, setStatusNotice] = useState<string>("");
 
@@ -162,7 +194,17 @@ export default function DocumentTaskTracker() {
     { id: "u-2", username: "nhaplieu", password: "Nhaplieu@2026", full_name: "Cán bộ nhập liệu Văn phòng", role: "editor" },
     { id: "u-3", username: "lanhdao", password: "Lanhdao@2026", full_name: "Thường trực Đảng ủy", role: "viewer" },
   ];
-  const [users, setUsers] = useState<UserAccount[]>(defaultUsers);
+  const [users, setUsers] = useState<UserAccount[]>(() => {
+    if (typeof window === "undefined") return defaultUsers;
+    try {
+      const savedUsersStr = localStorage.getItem("party_accounts_list_v21");
+      if (!savedUsersStr) return defaultUsers;
+      const uList = JSON.parse(savedUsersStr) as UserAccount[];
+      return Array.isArray(uList) && uList.length > 0 ? uList : defaultUsers;
+    } catch {
+      return defaultUsers;
+    }
+  });
 
   const [editingUser, setEditingUser] = useState<UserAccount | null>(null);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
@@ -172,11 +214,11 @@ export default function DocumentTaskTracker() {
   const [userFormRole, setUserFormRole] = useState<UserRole>("editor");
   const [userFormError, setUserFormError] = useState("");
 
-  const [formLevel, setFormLevel] = useState<"Trung ương" | "Thành ủy" | "Phường">("Trung ương");
+  const [formLevel, setFormLevel] = useState<DocLevel>("Trung ương");
   const [formDocNumber, setFormDocNumber] = useState("");
   const [formTitle, setFormTitle] = useState("");
   const [formIssueDate, setFormIssueDate] = useState("");
-  const [formIssuer, setFormIssuer] = useState("");
+  const [formIssuer, setFormIssuer] = useState("Ban Chấp hành Trung ương");
   const [formAssignee, setFormAssignee] = useState("");
   const [formDocUrl, setFormDocUrl] = useState("");
   const [formFile, setFormFile] = useState<File | null>(null);
@@ -196,25 +238,10 @@ export default function DocumentTaskTracker() {
   }, []);
 
   useEffect(() => {
-    try {
-      const savedUserStr = localStorage.getItem("party_current_user_v21");
-      if (savedUserStr) {
-        const u = JSON.parse(savedUserStr);
-        if (u && u.username) setCurrentUser(u);
-      }
-      const savedUsersStr = localStorage.getItem("party_accounts_list_v21");
-      if (savedUsersStr) {
-        const uList = JSON.parse(savedUsersStr);
-        if (Array.isArray(uList) && uList.length > 0) setUsers(uList);
-      }
-    } catch (e) {
-      console.warn("Lỗi đọc tài khoản:", e);
-    }
-
     if (isSupabaseConfigured && supabase) {
-      supabase.from("app_users").select("*").then(({ data, error }) => {
+      void supabase.from("app_users").select("*").then(({ data, error }) => {
         if (!error && data && data.length > 0) {
-          setUsers(data);
+          setUsers(data as UserAccount[]);
         }
       });
     }
@@ -242,15 +269,7 @@ export default function DocumentTaskTracker() {
     }
 
     if (matched) {
-      const isCorrectPassword =
-        (matched.password && matched.password === pInput) ||
-        (matched.password && matched.password.toLowerCase() === pInput.toLowerCase()) ||
-        pInput === "Admin@TrungNhut2026" ||
-        pInput === "TrungNhut@2026" ||
-        pInput === "123456" ||
-        pInput === "admin" ||
-        (matched.role === "editor" && (pInput === "Nhaplieu@2026" || pInput === "nhaplieu")) ||
-        (matched.role === "viewer" && (pInput === "Lanhdao@2026" || pInput === "lanhdao"));
+      const isCorrectPassword = !!matched.password && matched.password === pInput;
 
       if (isCorrectPassword) {
         setCurrentUser(matched);
@@ -280,7 +299,7 @@ export default function DocumentTaskTracker() {
   const canEdit = userRole === "admin" || userRole === "editor";
   const canAdmin = userRole === "admin";
 
-  const sampleData: DocItem[] = [
+  const sampleData = useMemo<DocItem[]>(() => [
     {
       id: "p-1",
       doc_number: "21-KH/ĐU",
@@ -437,7 +456,7 @@ export default function DocumentTaskTracker() {
       target_percent: 0,
       status: "Chưa thực hiện",
     },
-  ];
+  ], []);
 
   const calcPlanCompletedPercent = (subTargets: SubTarget[]): number => {
     if (!subTargets || subTargets.length === 0) return 0;
@@ -445,13 +464,13 @@ export default function DocumentTaskTracker() {
     return Math.round((completedCount / subTargets.length) * 100);
   };
 
-  const formatRawTasks = (data: any[]): DocItem[] => {
-    return data.map((item: any) => {
+  const formatRawTasks = useCallback((data: TaskRow[]): DocItem[] => {
+    return data.map((item) => {
       let subTargets: SubTarget[] = [];
       if (item.sub_targets) {
         try {
-          subTargets = typeof item.sub_targets === "string" ? JSON.parse(item.sub_targets) : item.sub_targets;
-        } catch (e) {
+          subTargets = typeof item.sub_targets === "string" ? JSON.parse(item.sub_targets) as SubTarget[] : item.sub_targets;
+        } catch {
           subTargets = [];
         }
       }
@@ -459,30 +478,32 @@ export default function DocumentTaskTracker() {
         subTargets = [{ id: "st-default", name: item.target_name, percent: item.target_percent || 0, deadline: "2026-12-31" }];
       }
 
-      let planCompletedPercent = calcPlanCompletedPercent(subTargets);
+      const planCompletedPercent = calcPlanCompletedPercent(subTargets);
+      const normalizedLevel: DocLevel = item.level === "Thành ủy" || item.level === "Phường" || item.level === "Trung ương" ? item.level : "Trung ương";
+      const fallbackStatus: DocStatus = planCompletedPercent === 100 ? "Hoàn thành" : planCompletedPercent > 0 ? "Đang thực hiện" : "Chưa thực hiện";
 
       return {
-        id: item.id,
-        doc_number: item.doc_number || (item.title?.includes(":") ? item.title.split(":")[0].trim() : "VB-" + item.id),
-        title: item.title?.includes(":") ? item.title.split(":").slice(1).join(":").trim() : item.title,
+        id: item.id ?? "",
+        doc_number: item.doc_number || (item.title?.includes(":") ? item.title.split(":")[0].trim() : `VB-${String(item.id ?? "")}`),
+        title: item.title?.includes(":") ? item.title.split(":").slice(1).join(":").trim() : item.title || "",
         issue_date: item.issue_date || item.deadline || "2026-01-01",
-        issuer: item.issuer || (item.level === "Trung ương" ? "Ban Chấp hành Trung ương" : item.level === "Thành ủy" ? "Ban Thường vụ Thành ủy" : "Đảng ủy phường"),
-        level: item.level || "Trung ương",
+        issuer: item.issuer || (normalizedLevel === "Trung ương" ? "Ban Chấp hành Trung ương" : normalizedLevel === "Thành ủy" ? "Ban Thường vụ Thành ủy" : "Đảng ủy phường"),
+        level: normalizedLevel,
         file_url: item.file_url || "",
         doc_url: item.doc_url || "",
         file_name: item.file_name || "",
-        is_concretized: item.is_concretized ?? (item.status === "Hoàn thành" || item.level === "Phường"),
+        is_concretized: item.is_concretized ?? (item.status === "Hoàn thành" || normalizedLevel === "Phường"),
         concretized_by: item.concretized_by || "",
         assignee: item.assignee || "Văn phòng Đảng ủy",
         sub_targets: subTargets,
-        target_name: item.target_name || (subTargets.length > 0 ? subTargets.map(s => s.name).join("; ") : undefined),
-        target_percent: item.level === "Phường" ? planCompletedPercent : (item.is_concretized ? 100 : 0),
-        status: (item.status as any) || (planCompletedPercent === 100 ? "Hoàn thành" : planCompletedPercent > 0 ? "Đang thực hiện" : "Chưa thực hiện"),
+        target_name: item.target_name || (subTargets.length > 0 ? subTargets.map((s) => s.name).join("; ") : undefined),
+        target_percent: normalizedLevel === "Phường" ? planCompletedPercent : (item.is_concretized ? 100 : 0),
+        status: (item.status as DocStatus) || fallbackStatus,
       };
     });
-  };
+  }, []);
 
-  const loadData = async () => {
+  const loadData = useCallback(async () => {
     setLoading(true);
     if (isSupabaseConfigured && supabase) {
       try {
@@ -491,29 +512,35 @@ export default function DocumentTaskTracker() {
           .select("*")
           .order("id", { ascending: false });
         if (!error && data && data.length > 0) {
-          setDocs(formatRawTasks(data));
+          setDocs(formatRawTasks(data as TaskRow[]));
           setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
           setLoading(false);
           return;
-        } else if (error) {
+        }
+        if (error) {
           console.error("Lỗi Supabase select:", error);
           setStatusNotice(`Lỗi Supabase: ${error.message}`);
         }
-      } catch (err: any) {
+      } catch (err) {
+        const message = err instanceof Error ? err.message : String(err);
         console.error("Lỗi kết nối Supabase:", err);
-        setStatusNotice(`Lỗi kết nối: ${err.message || err}`);
+        setStatusNotice(`Lỗi kết nối: ${message}`);
       }
     }
 
     const saved = localStorage.getItem("party_documents_v21");
     if (saved) {
-      try { setDocs(JSON.parse(saved)); } catch (e) { setDocs(sampleData); }
+      try {
+        setDocs(JSON.parse(saved) as DocItem[]);
+      } catch {
+        setDocs(sampleData);
+      }
     } else {
       setDocs(sampleData);
     }
     setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
     setLoading(false);
-  };
+  }, [formatRawTasks, sampleData]);
 
   // NẠP TOÀN BỘ DỮ LIỆU BAN ĐẦU LÊN SUPABASE ĐỂ LƯU VĨNH VIỄN
   const handleSeedDataToSupabase = async () => {
@@ -525,12 +552,24 @@ export default function DocumentTaskTracker() {
 
     try {
       setLoading(true);
+
+      const { data: existingRows } = await supabase.from("tasks").select("doc_number");
+      const existingNumbers = new Set(
+        (existingRows || [])
+          .map((row) => String((row as { doc_number?: string | null } | null)?.doc_number ?? ""))
+          .filter(Boolean)
+      );
+
+      let insertedCount = 0;
       for (const doc of docs) {
-        const payload: any = {
+        const docNumber = doc.doc_number || "";
+        if (existingNumbers.has(docNumber)) continue;
+
+        const payload: Record<string, string | number | boolean | null> = {
           title: `${doc.doc_number}: ${doc.title}`,
           level: doc.level,
           deadline: doc.issue_date,
-          assignee: doc.assignee,
+          assignee: doc.assignee || "Văn phòng Đảng ủy",
           status: doc.status,
           doc_number: doc.doc_number,
           issuer: doc.issuer,
@@ -549,39 +588,44 @@ export default function DocumentTaskTracker() {
           setLoading(false);
           return;
         }
+        existingNumbers.add(docNumber);
+        insertedCount += 1;
       }
 
       for (const u of users) {
         await supabase.from("app_users").upsert([u]);
       }
 
-      alert("✓ Toàn bộ dữ liệu đã được lưu thành công vào cơ sở dữ liệu Supabase! Bây giờ đồng chí mở trên điện thoại sẽ thấy ngay lập tức.");
+      alert(`✓ Hoàn tất nạp dữ liệu: đã lưu ${insertedCount} văn bản mới vào Supabase (${docs.length - insertedCount} văn bản đã tồn tại, bỏ qua). Mở trên điện thoại sẽ thấy ngay lập tức.`);
       await loadData();
-    } catch (err: any) {
-      alert("Lỗi: " + (err.message || err));
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      alert("Lỗi: " + message);
     } finally {
       setLoading(false);
     }
   };
 
   useEffect(() => {
-    loadData();
+    const bootTimer = window.setTimeout(() => {
+      void loadData();
+    }, 0);
 
     if (isSupabaseConfigured && supabase) {
-      setRealtimeStatus("connecting");
-      const channel = supabase
+      const sb = supabase;
+      const channel = sb
         .channel("realtime_tasks_channel_v21")
         .on(
           "postgres_changes",
           { event: "*", schema: "public", table: "tasks" },
           () => {
-            supabase
+            void sb
               .from("tasks")
               .select("*")
               .order("id", { ascending: false })
               .then(({ data }) => {
                 if (data) {
-                  setDocs(formatRawTasks(data));
+                  setDocs(formatRawTasks(data as TaskRow[]));
                   setLastSyncTime(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
                 }
               });
@@ -596,12 +640,15 @@ export default function DocumentTaskTracker() {
         });
 
       return () => {
-        supabase.removeChannel(channel);
+        clearTimeout(bootTimer);
+        sb.removeChannel(channel);
       };
-    } else {
-      setRealtimeStatus("off");
     }
-  }, []);
+
+    return () => {
+      clearTimeout(bootTimer);
+    };
+  }, [formatRawTasks, loadData]);
 
   useEffect(() => {
     if (!isSupabaseConfigured && docs.length > 0) {
@@ -609,11 +656,16 @@ export default function DocumentTaskTracker() {
     }
   }, [docs]);
 
-  useEffect(() => {
-    if (formLevel === "Trung ương") setFormIssuer("Ban Chấp hành Trung ương");
-    else if (formLevel === "Thành ủy") setFormIssuer("Ban Thường vụ Thành ủy Cần Thơ");
-    else setFormIssuer("Đảng ủy phường Trung Nhứt");
-  }, [formLevel]);
+  const syncFormIssuer = (level: DocLevel) => {
+    if (level === "Trung ương") return "Ban Chấp hành Trung ương";
+    if (level === "Thành ủy") return "Ban Thường vụ Thành ủy Cần Thơ";
+    return "Đảng ủy phường Trung Nhứt";
+  };
+
+  const handleFormLevelChange = (nextLevel: DocLevel) => {
+    setFormLevel(nextLevel);
+    setFormIssuer(syncFormIssuer(nextLevel));
+  };
 
   const handleOpenDocument = (doc: DocItem) => {
     const target = doc.file_url || doc.doc_url;
@@ -633,7 +685,7 @@ export default function DocumentTaskTracker() {
       const fileName = `${Date.now()}_${Math.random().toString(36).substring(2, 7)}.${fileExt}`;
       const filePath = `documents/${fileName}`;
 
-      const { data, error } = await supabase.storage
+      const { error } = await supabase.storage
         .from("documents")
         .upload(filePath, file, { cacheControl: "3600", upsert: true });
 
@@ -708,11 +760,11 @@ export default function DocumentTaskTracker() {
     };
 
     if (isSupabaseConfigured && supabase) {
-      const payload: any = {
+      const payload: Record<string, string | number | boolean | null> = {
         title: `${newDoc.doc_number}: ${newDoc.title}`,
         level: newDoc.level,
         deadline: newDoc.issue_date,
-        assignee: newDoc.assignee,
+        assignee: newDoc.assignee || "Văn phòng Đảng ủy",
         status: newDoc.status,
         doc_number: newDoc.doc_number,
         issuer: newDoc.issuer,
@@ -777,11 +829,11 @@ export default function DocumentTaskTracker() {
     setDocs(docs.map(d => d.id === updatedDoc.id ? updatedDoc : d));
 
     if (isSupabaseConfigured && supabase) {
-      const payload: any = {
+      const payload: Record<string, string | number | boolean | null> = {
         title: `${updatedDoc.doc_number}: ${updatedDoc.title}`,
         level: updatedDoc.level,
         deadline: updatedDoc.issue_date,
-        assignee: updatedDoc.assignee,
+        assignee: updatedDoc.assignee || "Văn phòng Đảng ủy",
         status: updatedDoc.status,
         doc_number: updatedDoc.doc_number,
         issuer: updatedDoc.issuer,
@@ -847,13 +899,13 @@ export default function DocumentTaskTracker() {
       sub_targets: newSubTargets,
       target_percent: planCompletedPercent,
       target_name: newSubTargets.map(s => s.name).join("; "),
-      status: newStatus as any
+      status: newStatus as DocStatus
     };
 
     setDocs(docs.map(d => String(d.id) === String(docId) ? updated : d));
 
     if (isSupabaseConfigured && supabase) {
-      const payload: any = {
+      const payload: Record<string, string | number | boolean | null> = {
         sub_targets: JSON.stringify(newSubTargets),
         target_name: updated.target_name,
         target_percent: planCompletedPercent,
@@ -870,11 +922,11 @@ export default function DocumentTaskTracker() {
         }
       } else {
         // ĐÂY CHÍNH LÀ NƠI FIX LỖI: Nếu là kế hoạch mẫu p-1, p-2, insert trực tiếp cả Kế hoạch vào Supabase
-        const fullPayload: any = {
+        const fullPayload: Record<string, string | number | boolean | null> = {
           title: `${targetDoc.doc_number}: ${targetDoc.title}`,
           level: targetDoc.level,
           deadline: targetDoc.issue_date,
-          assignee: targetDoc.assignee,
+          assignee: targetDoc.assignee || "Văn phòng Đảng ủy",
           status: newStatus,
           doc_number: targetDoc.doc_number,
           issuer: targetDoc.issuer,
@@ -1122,27 +1174,27 @@ export default function DocumentTaskTracker() {
       );
 
       if (matchedDoc) {
-        responseText = `• **Số hiệu**: ${matchedDoc.doc_number}\n` +
-          `• **Trích yếu**: ${matchedDoc.title}\n` +
-          `• **Cơ quan & Ngày**: ${matchedDoc.issuer} (${matchedDoc.issue_date})\n` +
+        responseText = `• Số hiệu: ${matchedDoc.doc_number}\n` +
+          `• Trích yếu: ${matchedDoc.title}\n` +
+          `• Cơ quan & Ngày: ${matchedDoc.issuer} (${matchedDoc.issue_date})\n` +
           (matchedDoc.level === "Phường" 
-            ? `• **Tiến độ**: ${matchedDoc.target_percent}% chỉ tiêu cán đích 100% (${matchedDoc.sub_targets?.length || 0} chỉ tiêu)`
-            : `• **Tình trạng thể chế**: ${matchedDoc.is_concretized ? `Đã có văn bản ${matchedDoc.concretized_by}` : "CHƯA CỤ THỂ HÓA (ĐIỂM NGHẼN THỂ CHẾ)"}`);
+            ? `• Tiến độ: ${matchedDoc.target_percent}% chỉ tiêu cán đích 100% (${matchedDoc.sub_targets?.length || 0} chỉ tiêu)`
+            : `• Tình trạng thể chế: ${matchedDoc.is_concretized ? `Đã có văn bản ${matchedDoc.concretized_by}` : "CHƯA CỤ THỂ HÓA (ĐIỂM NGHẼN THỂ CHẾ)"}`);
       } else if (qLower.includes("thể chế") || qLower.includes("cụ thể hóa") || qLower.includes("chưa ban hành")) {
         if (institutionalBottlenecks.length === 0) {
           responseText = `✓ Không có điểm nghẽn thể chế. 100% văn bản Trung ương và Thành ủy đã được ban hành văn bản cụ thể hóa.`;
         } else {
-          const list = institutionalBottlenecks.map((b, i) => `${i + 1}. **${b.doc_number}**: ${b.title} (${b.issuer}, ngày ${b.issue_date})`).join("\n");
-          responseText = `⚠️ **Có ${institutionalBottlenecks.length} điểm nghẽn thể chế chưa ban hành kế hoạch**:\n${list}\n\n↳ **Kiến nghị**: Giao Văn phòng Đảng ủy và Ban Xây dựng Đảng hoàn thành dự thảo văn bản trong tháng.`;
+          const list = institutionalBottlenecks.map((b, i) => `${i + 1}. ${b.doc_number}: ${b.title} (${b.issuer}, ngày ${b.issue_date})`).join("\n");
+          responseText = `⚠️ Có ${institutionalBottlenecks.length} điểm nghẽn thể chế chưa ban hành kế hoạch:\n${list}\n\n↳ Kiến nghị: Giao Văn phòng Đảng ủy và Ban Xây dựng Đảng hoàn thành dự thảo văn bản trong tháng.`;
         }
       } else if (qLower.includes("chỉ tiêu") || qLower.includes("chậm") || qLower.includes("nghẽn") || qLower.includes("tiến độ")) {
         if (uncompletedTargetList.length === 0) {
           responseText = `✓ 100% các chỉ tiêu theo văn bản của Đảng ủy phường đã hoàn thành.`;
         } else {
           const list = uncompletedTargetList.map((item, i) => 
-            `${i + 1}. **${item.target.name}** (${item.planDoc.doc_number})\n   - Đạt: ${item.target.percent}% (thiếu ${100 - item.target.percent}%) | Hạn: ${item.target.deadline || '2026'}\n   - Lý do: ${item.target.bottleneck_reason || 'Đang giải quyết'}\n   - Giải pháp: ${item.target.proposed_solution || 'Đôn đốc tiến độ'}`
+            `${i + 1}. ${item.target.name} (${item.planDoc.doc_number})\n   - Đạt: ${item.target.percent}% (thiếu ${100 - item.target.percent}%) | Hạn: ${item.target.deadline || '2026'}\n   - Lý do: ${item.target.bottleneck_reason || 'Đang giải quyết'}\n   - Giải pháp: ${item.target.proposed_solution || 'Đôn đốc tiến độ'}`
           ).join("\n");
-          responseText = `🎯 **${uncompletedTargetList.length} chỉ tiêu chậm tiến độ**:\n${list}`;
+          responseText = `🎯 ${uncompletedTargetList.length} chỉ tiêu chậm tiến độ:\n${list}`;
         }
       } else {
         responseText = `• Tổng số văn bản: ${docs.length} (TW: ${counts.tw}, Thành ủy: ${counts.tu}, Phường: ${counts.phuong})\n` +
@@ -1292,6 +1344,13 @@ export default function DocumentTaskTracker() {
 
   return (
     <div className="flex min-h-screen bg-[#f8fafc] font-sans text-slate-800 antialiased selection:bg-rose-500 selection:text-white">
+      {loading && (
+        <div className="fixed inset-0 z-[60] flex items-center justify-center bg-slate-900/20 backdrop-blur-[1px]">
+          <div className="rounded-2xl border border-slate-200 bg-white px-4 py-3 shadow-lg text-xs font-bold text-slate-700">
+            Đang tải dữ liệu...
+          </div>
+        </div>
+      )}
       {/* Mobile Drawer Overlay */}
       {mobileMenuOpen && (
         <div
@@ -2039,7 +2098,7 @@ export default function DocumentTaskTracker() {
                       <label className="font-bold text-slate-700 block mb-1">Cấp văn bản:</label>
                       <select
                         value={formLevel}
-                        onChange={(e) => setFormLevel(e.target.value as any)}
+                        onChange={(e) => handleFormLevelChange(e.target.value as DocLevel)}
                         className="w-full border border-slate-300 rounded-xl p-2.5 bg-slate-50 font-semibold text-xs"
                       >
                         <option value="Trung ương">Cấp Trung ương</option>
@@ -2389,7 +2448,7 @@ export default function DocumentTaskTracker() {
                   <div className="space-y-4">
                     {(selectedPlan.sub_targets || []).length === 0 ? (
                       <div className="text-center py-8 text-slate-400 text-xs">
-                        Văn bản này chưa có chỉ tiêu thành phần nào. Hãy bấm <strong>"＋ Thêm chỉ tiêu mới"</strong> để bắt đầu.
+                        Văn bản này chưa có chỉ tiêu thành phần nào. Hãy bấm <strong>&quot;＋ Thêm chỉ tiêu mới&quot;</strong> để bắt đầu.
                       </div>
                     ) : (
                       (selectedPlan.sub_targets || []).map((st, idx) => (
@@ -2907,7 +2966,7 @@ export default function DocumentTaskTracker() {
                   <label className="font-bold text-slate-700 block mb-1">Cấp văn bản:</label>
                   <select
                     value={editingDoc.level}
-                    onChange={(e) => setEditingDoc({ ...editingDoc, level: e.target.value as any })}
+                    onChange={(e) => setEditingDoc({ ...editingDoc, level: e.target.value as DocLevel })}
                     className="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-semibold"
                   >
                     <option value="Trung ương">Cấp Trung ương</option>
@@ -3112,7 +3171,7 @@ export default function DocumentTaskTracker() {
                 <label className="font-bold text-slate-700 block mb-1">Vai trò phân quyền:</label>
                 <select
                   value={userFormRole}
-                  onChange={(e) => setUserFormRole(e.target.value as any)}
+                  onChange={(e) => setUserFormRole(e.target.value as UserRole)}
                   className="w-full border border-slate-300 rounded-xl p-2.5 text-xs font-bold bg-slate-50"
                 >
                   <option value="viewer">Chỉ xem (Thường trực Đảng ủy, khách)</option>
